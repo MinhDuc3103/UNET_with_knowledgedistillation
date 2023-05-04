@@ -63,7 +63,7 @@ class BasicDataset(Dataset):
 
     @staticmethod
     def preprocess(mask_values, pil_img, scale, is_mask):
-        #pil_img = pil_img.resize((256, 256))
+        pil_img = pil_img.resize((224, 224))
         w, h = pil_img.size
         newW, newH = int(scale * w), int(scale * h)
         assert newW > 0 and newH > 0, 'Scale is too small, resized images would have no pixel'

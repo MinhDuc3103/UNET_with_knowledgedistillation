@@ -9,8 +9,9 @@ from PIL import Image
 from torchvision import transforms
 
 from utils.data_loading import BasicDataset
-from unet import UNet
+from unet import UNet, Student
 from utils.utils import plot_img_and_mask
+import matplotlib.pyplot as plt
 
 def predict_img(net,
                 full_img,
@@ -29,13 +30,12 @@ def predict_img(net,
             mask = output.argmax(dim=1)
         else:
             mask = torch.sigmoid(output) > out_threshold
-
     return mask[0].long().squeeze().numpy()
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Predict masks from input images')
-    parser.add_argument('--model', '-m', default='MODEL.pth', metavar='FILE',
+    parser.add_argument('--model', '-m', default='./stu_with_kd/checkpoint_epoch5.pth', metavar='FILE',
                         help='Specify the file in which the model is stored')
     parser.add_argument('--input', '-i', metavar='INPUT', nargs='+', help='Filenames of input images', required=True)
     parser.add_argument('--output', '-o', metavar='OUTPUT', nargs='+', help='Filenames of output images')
@@ -44,7 +44,7 @@ def get_args():
     parser.add_argument('--no-save', '-n', action='store_true', help='Do not save the output masks')
     parser.add_argument('--mask-threshold', '-t', type=float, default=0.5,
                         help='Minimum probability value to consider a mask pixel white')
-    parser.add_argument('--scale', '-s', type=float, default=0.5,
+    parser.add_argument('--scale', '-s', type=float, default=1.0,
                         help='Scale factor for the input images')
     parser.add_argument('--bilinear', action='store_true', default=False, help='Use bilinear upsampling')
     parser.add_argument('--classes', '-c', type=int, default=3, help='Number of classes')
@@ -66,13 +66,11 @@ def mask_to_image(mask: np.ndarray, mask_values):
         out = np.zeros((mask.shape[-2], mask.shape[-1]), dtype=bool)
     else:
         out = np.zeros((mask.shape[-2], mask.shape[-1]), dtype=np.uint8)
-
     if mask.ndim == 3:
-        mask = np.argmax(mask, axis=0)
-
+        mask = np.argmax(mask, axis=1)
+    #print(mask)
     for i, v in enumerate(mask_values):
         out[mask == i] = v
-
     return Image.fromarray(out)
 
 
@@ -83,7 +81,7 @@ if __name__ == '__main__':
     in_files = args.input
     out_files = get_output_filenames(args)
 
-    net = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    net = Student(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Loading model {args.model}')
@@ -105,7 +103,6 @@ if __name__ == '__main__':
                            scale_factor=args.scale,
                            out_threshold=args.mask_threshold,
                            device=device)
-
         if not args.no_save:
             out_filename = out_files[i]
             result = mask_to_image(mask, mask_values)
